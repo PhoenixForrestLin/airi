@@ -1,0 +1,62 @@
+# AIRI server 连接
+airi:
+  url: ws://localhost:6121/ws
+  token: abcd
+
+# NapCat 连接
+naplink:
+  connection:
+    url: ws://localhost:3001
+    token: DForeBLiQad_lu96
+
+# 各阶段配置（其余保持不变）
+filter:
+  blacklistUsers: []
+  blacklistGroups: []
+  whitelistMode: false
+  whitelistGroups: []
+  ignoreSystemUsers: []
+  ignoreEmptyMessages: true
+
+wake:
+  keywords: ['airi', '爱莉']
+  keywordMatchMode: contains
+  randomWakeRate: 0
+  alwaysWakeInPrivate: true
+
+rateLimit:
+  perSession: {max: 10, windowMs: 60000}
+  perUser: {max: 10, windowMs: 60000}
+  global: {max: 50, windowMs: 60000}
+  cooldownMs: 1000
+  onLimited: silent
+
+session:
+  maxHistoryPerSession: 50
+  contextWindow: 20
+  timeoutMs: 1800000
+  isolateByTopic: false
+
+process:
+  commands:
+    prefix: '/'
+    enabled: [help, status, clear]
+    replyTimeoutMs: 120000 # 网络差时加大
+    sendMaxRetries: 5
+
+decorate:
+  maxMessageLength: 4500
+  splitStrategy: multi-message
+  autoReply: true
+  contentFilter:
+    enabled: false
+    replacements: {}
+
+respond:
+  typingDelay: {min: 300, max: 800}
+  multiMessageDelay: 500
+  retryCount: 2
+  retryDelayMs: 1000
+
+logging:
+  level: debug
