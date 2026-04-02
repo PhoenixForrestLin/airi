@@ -3443,6 +3443,43 @@ importers:
         specifier: 'catalog:'
         version: 8.18.1
 
+  services/qq-bot:
+    dependencies:
+      '@guiiai/logg':
+        specifier: 'catalog:'
+        version: 1.2.11
+      '@naplink/naplink':
+        specifier: ^0.0.10
+        version: 0.0.10(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+      '@proj-airi/server-sdk':
+        specifier: workspace:^
+        version: link:../../packages/server-sdk
+      '@proj-airi/server-shared':
+        specifier: workspace:^
+        version: link:../../packages/server-shared
+      '@xsai/generate-text':
+        specifier: 'catalog:'
+        version: 0.4.4
+      '@xsai/shared-chat':
+        specifier: 'catalog:'
+        version: 0.4.0-beta.13
+      es-toolkit:
+        specifier: ^1.45.1
+        version: 1.45.1
+      valibot:
+        specifier: 'catalog:'
+        version: 1.3.1(typescript@6.0.2)
+      yaml:
+        specifier: ^2.7.1
+        version: 2.8.3
+    devDependencies:
+      '@types/node':
+        specifier: ^24.12.0
+        version: 24.12.0
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+
   services/satori-bot:
     dependencies:
       '@electric-sql/pglite':
@@ -6216,6 +6253,10 @@ packages:
 
   '@napi-rs/wasm-runtime@1.1.1':
     resolution: {integrity: sha512-p64ah1M1ld8xjWv3qbvFwHiFVWrq1yFvV4f7w+mzaqiR4IlSgkqhcRdHwsGgomwzBH51sRY4NEowLxnaBjcW/A==}
+
+  '@naplink/naplink@0.0.10':
+    resolution: {integrity: sha512-+ygiV1NblKxfBOc/8rDv7UH28WVT1PiBZ1KEJZeKlt9kpb2v/ooGosdf9MKLHDBmZcoKAykD6ydRd/A5tJ40dQ==}
+    engines: {node: '>=18.0.0'}
 
   '@nekopaw/tempora@0.4.0-alpha.1':
     resolution: {integrity: sha512-DlTVHe8HG2d925Jdr8qNikzFISr/ej3lq2/b4UMYfRx+IzMvkPasag1mzedWfrkU2keHn3NgClbWP/MbAxFyKw==}
@@ -13122,6 +13163,11 @@ packages:
 
   isomorphic-fetch@3.0.0:
     resolution: {integrity: sha512-qvUtwJ3j6qwsF3jLxkZ72qCgjMysPzDfeV240JHiGZsANBYd+EEuu35v7dfrJ9Up0Ak07D7GGSkGhCHTqg/5wA==}
+
+  isomorphic-ws@5.0.0:
+    resolution: {integrity: sha512-muId7Zzn9ywDsyXgTIafTry2sV3nySZeUDe6YedVd1Hvuuep5AsIlqK+XefWpYTyJG5e503F2xIuT2lcU6rCSw==}
+    peerDependencies:
+      ws: '*'
 
   isstream@0.1.2:
     resolution: {integrity: sha512-Yljz7ffyPbrLpLngrMtZ7NduUgVvi6wG9RJ9IUcyCd59YQ911PBJphODUcbOVbqYfxe1wuYf/LJ8PauMRwsM/g==}
@@ -20154,6 +20200,14 @@ snapshots:
       '@tybys/wasm-util': 0.10.1
     optional: true
 
+  '@naplink/naplink@0.0.10(bufferutil@4.1.0)(utf-8-validate@5.0.10)':
+    dependencies:
+      isomorphic-ws: 5.0.0(ws@8.20.0(bufferutil@4.1.0)(utf-8-validate@5.0.10))
+      ws: 8.20.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
+
   '@nekopaw/tempora@0.4.0-alpha.1': {}
 
   '@noble/ciphers@1.3.0': {}
@@ -25576,7 +25630,7 @@ snapshots:
       '@electron/asar': 3.4.1
       debug: 4.4.3
       fs-extra: 7.0.1
-      lodash: 4.17.23
+      lodash: 4.17.21
       temp: 0.9.4
     optionalDependencies:
       '@electron/windows-sign': 1.2.2
@@ -27530,6 +27584,10 @@ snapshots:
       whatwg-fetch: 3.6.20
     transitivePeerDependencies:
       - encoding
+
+  isomorphic-ws@5.0.0(ws@8.20.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)):
+    dependencies:
+      ws: 8.20.0(bufferutil@4.1.0)(utf-8-validate@5.0.10)
 
   isstream@0.1.2: {}
 
@@ -32480,7 +32538,7 @@ snapshots:
       fast-json-stable-stringify: 2.1.0
       fs-extra: 9.1.0
       glob: 11.1.0
-      lodash: 4.17.23
+      lodash: 4.17.21
       pretty-bytes: 5.6.0
       rollup: 2.80.0
       source-map: 0.8.0-beta.0

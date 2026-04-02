@@ -5,6 +5,7 @@ dictionaries: []
 words:
   - acubismmotion
   - Aerisita
+  - Agentic
   - aihubmix
   - airi
   - airi-vtuber
@@ -186,6 +187,8 @@ words:
   - msvc
   - multisampling
   - Myriam
+  - napcat
+  - naplink
   - ndarray
   - Neko
   - nekomeowww
@@ -205,6 +208,7 @@ words:
   - ofetch
   - oklch
   - ollama
+  - onebot
   - Oneliner
   - onnx
   - onnxruntime
@@ -300,6 +304,7 @@ words:
   - unplugin
   - unspeech
   - upterm
+  - Vali
   - valibot
   - vaul
   - velin
