@@ -31,6 +31,9 @@ export function createAiriClient(url: string, token: string): AiriChannel {
     possibleEvents: [
       'input:text',
       'module:configure',
+      'module:announced',
+      'module:de-announced',
+      'registry:modules:sync',
       'output:gen-ai:chat:message',
     ],
     token,
@@ -38,6 +41,11 @@ export function createAiriClient(url: string, token: string): AiriChannel {
     heartbeat: {
       readTimeout: 60_000,
       pingInterval: 20_000,
+    },
+    onAnyMessage: (data) => {
+      if (data.type !== 'transport:connection:heartbeat') {
+        logger.info(`[AIRI ← msg] type=${data.type}`, JSON.stringify(data))
+      }
     },
   })
 
