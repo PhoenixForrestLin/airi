@@ -7,7 +7,8 @@ import { DrawerContent, DrawerHandle, DrawerOverlay, DrawerPortal, DrawerRoot } 
 import { ref } from 'vue'
 import { toast } from 'vue-sonner'
 
-import { signIn } from '../../libs/auth'
+import { signInOIDC } from '../../libs/auth'
+import { OIDC_CLIENT_ID, OIDC_REDIRECT_URI } from '../../libs/auth-config'
 
 const open = defineModel<boolean>('open', { required: true })
 
@@ -22,7 +23,11 @@ const loading = ref<Record<OAuthProvider, boolean>>({
 async function handleSignIn(provider: OAuthProvider) {
   loading.value[provider] = true
   try {
-    await signIn(provider)
+    await signInOIDC({
+      clientId: OIDC_CLIENT_ID,
+      redirectUri: OIDC_REDIRECT_URI,
+      provider,
+    })
   }
   catch (error) {
     toast.error(error instanceof Error ? error.message : 'An unknown error occurred')
@@ -49,23 +54,23 @@ async function handleSignIn(provider: OAuthProvider) {
           <div class="flex flex-col gap-4">
             <Button
               :class="['w-full', 'py-4', 'flex', 'items-center', 'justify-center', 'gap-3', 'text-lg', 'rounded-2xl']"
+              icon="i-simple-icons-google"
               :loading="loading.google"
               @click="handleSignIn('google')"
             >
-              <div v-if="!loading.google" class="i-simple-icons-google text-xl" />
               <span>Sign in with Google</span>
             </Button>
             <Button
               :class="['w-full', 'py-4', 'flex', 'items-center', 'justify-center', 'gap-3', 'text-lg', 'rounded-2xl']"
+              icon="i-simple-icons-github"
               :loading="loading.github"
               @click="handleSignIn('github')"
             >
-              <div v-if="!loading.github" class="i-simple-icons-github text-xl" />
               <span>Sign in with GitHub</span>
             </Button>
           </div>
           <div class="mt-10 pb-2 text-center text-xs text-gray-400">
-            By continuing, you agree to our <a href="#" class="underline">Terms</a> and <a href="#" class="underline">Privacy Policy</a>.
+            By continuing, you agree to our <a href="https://airi.moeru.ai/docs/en/about/terms" class="underline">Terms</a> and <a href="https://airi.moeru.ai/docs/en/about/privacy" class="underline">Privacy Policy</a>.
           </div>
         </div>
       </DrawerContent>

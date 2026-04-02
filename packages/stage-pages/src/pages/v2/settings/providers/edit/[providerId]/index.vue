@@ -3,6 +3,9 @@ import type { ProviderValidationStep } from '@proj-airi/stage-ui/libs'
 import type { ZodType } from 'zod'
 import type { $ZodType } from 'zod/v4/core'
 
+// TODO: https://developer.mozilla.org/en-US/docs/Web/API/HTML_Sanitizer_API
+import DOMPurify from 'dompurify'
+
 import { merge } from '@moeru/std'
 import {
   Alert,
@@ -17,7 +20,7 @@ import {
 } from '@proj-airi/stage-ui/components'
 import { getDefinedProvider, getSchemaDefault, getValidatorsOfProvider, validateProvider } from '@proj-airi/stage-ui/libs'
 import { useProviderCatalogStore } from '@proj-airi/stage-ui/stores/provider-catalog'
-import { Button, Callout, FieldInput, FieldKeyValues, FieldSelect } from '@proj-airi/ui'
+import { Button, Callout, FieldCombobox, FieldInput, FieldKeyValues } from '@proj-airi/ui'
 import { useCloned, useDebounceFn } from '@vueuse/core'
 import { DropdownMenuContent, DropdownMenuItem, DropdownMenuPortal, DropdownMenuRoot, DropdownMenuTrigger } from 'reka-ui'
 import { computed, onMounted, ref, watch } from 'vue'
@@ -68,6 +71,10 @@ const hasValidationFailures = computed(() => validationSteps.value.some(step => 
 const isOllamaProvider = computed(() => providerDefinition.value?.id === 'ollama')
 const shouldShowTroubleshootingOllamaConnectivity = computed(() => {
   return isOllamaProvider.value && validationSteps.value.some(step => step.id === 'openai-compatible:check-connectivity' && step.status === 'invalid')
+})
+const safeOllamaConnectivityTroubleshootingHtml = computed(() => {
+  const content = providerDefinition.value?.business?.({ t }).troubleshooting?.validators?.openaiCompatibleCheckConnectivity?.content
+  return DOMPurify.sanitize(content || '')
 })
 
 function getSchemaShape(schema: $ZodType): Record<string, ZodType> {
@@ -455,7 +462,7 @@ function handleDeleteProvider() {
                   :placeholder="field.placeholder"
                   :required="field.required"
                 />
-                <FieldSelect
+                <FieldCombobox
                   v-else-if="field.type === 'select'"
                   v-model="providerConfigEdit.config[field.key]"
                   :label="field.label"
@@ -481,7 +488,7 @@ function handleDeleteProvider() {
               v-if="shouldShowTroubleshootingOllamaConnectivity && providerDefinition.business?.({ t }).troubleshooting?.validators?.openaiCompatibleCheckConnectivity"
               :label="providerDefinition.business?.({ t }).troubleshooting?.validators?.openaiCompatibleCheckConnectivity?.label"
             >
-              <div v-html="providerDefinition.business?.({ t }).troubleshooting?.validators?.openaiCompatibleCheckConnectivity?.content" />
+              <div v-html="safeOllamaConnectivityTroubleshootingHtml" />
             </Callout>
 
             <div :class="['flex', 'items-center', 'justify-between']">

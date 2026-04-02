@@ -1,11 +1,11 @@
 <script setup lang="ts">
 import type { ModelSettingsRuntimeSnapshot } from '@proj-airi/stage-ui/components/scenarios/settings/model-settings/runtime'
-import type { ChatProvider } from '@xsai-ext/providers/utils'
 
 import type { ModelSettingsRuntimeChannelEvent } from '../../shared/model-settings-runtime'
 
 import workletUrl from '@proj-airi/stage-ui/workers/vad/process.worklet?worker&url'
 
+import { tryCatch } from '@moeru/std'
 import { electron } from '@proj-airi/electron-eventa'
 import {
   useElectronEventaInvoke,
@@ -23,12 +23,9 @@ import { WidgetStage } from '@proj-airi/stage-ui/components/scenes'
 import { useAudioRecorder } from '@proj-airi/stage-ui/composables/audio/audio-recorder'
 import { useCanvasPixelIsTransparentAtPoint } from '@proj-airi/stage-ui/composables/canvas-alpha'
 import { useVAD } from '@proj-airi/stage-ui/stores/ai/models/vad'
-import { useChatOrchestratorStore } from '@proj-airi/stage-ui/stores/chat'
 import { useLive2d } from '@proj-airi/stage-ui/stores/live2d'
-import { useConsciousnessStore } from '@proj-airi/stage-ui/stores/modules/consciousness'
 import { useHearingSpeechInputPipeline } from '@proj-airi/stage-ui/stores/modules/hearing'
 import { useOnboardingStore } from '@proj-airi/stage-ui/stores/onboarding'
-import { useProvidersStore } from '@proj-airi/stage-ui/stores/providers'
 import { useSettings, useSettingsAudioDevice } from '@proj-airi/stage-ui/stores/settings'
 import { refDebounced, useBroadcastChannel } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
@@ -42,6 +39,7 @@ import { electronOpenOnboarding } from '../../shared/eventa'
 import {
   modelSettingsRuntimeSnapshotChannelName,
 } from '../../shared/model-settings-runtime'
+import { useChatSyncStore } from '../stores/chat-sync'
 import { useControlsIslandStore } from '../stores/controls-island'
 import { useStageWindowLifecycleStore } from '../stores/stage-window-lifecycle'
 import { useWindowStore } from '../stores/window'
@@ -90,12 +88,7 @@ const { sceneMutationLocked, scenePhase } = storeToRefs(modelStore)
 const { stagePaused } = storeToRefs(useStageWindowLifecycleStore())
 const { fadeOnHoverEnabled } = storeToRefs(useControlsIslandStore())
 const modelSettingsRuntimeOwnerInstanceId = `tamagotchi-main-stage:${Math.random().toString(36).slice(2, 10)}`
-const {
-  data: modelSettingsRuntimeChannelEvent,
-  post: postModelSettingsRuntimeChannelEvent,
-} = useBroadcastChannel<ModelSettingsRuntimeChannelEvent, ModelSettingsRuntimeChannelEvent>({
-  name: modelSettingsRuntimeSnapshotChannelName,
-})
+const { data: modelSettingsRuntimeChannelEvent, post: postModelSettingsRuntimeChannelEvent } = useBroadcastChannel<ModelSettingsRuntimeChannelEvent, ModelSettingsRuntimeChannelEvent>({ name: modelSettingsRuntimeSnapshotChannelName })
 const shouldUseThreeTransparencyHitTest = computed(() => shouldSampleStageTransparency({
   componentState: componentStateStage.value,
   fadeOnHoverEnabled: fadeOnHoverEnabled.value,
@@ -207,10 +200,12 @@ watch([isOutsideFor250Ms, isOutsideStatusIslandFor250Ms, isAroundWindowBorderFor
       pause()
   }
 })
+
 // Emit runtime snapshot on change and on request from settings panel
 watch(modelSettingsRuntimeSnapshot, (snapshot) => {
   postModelSettingsRuntimeChannelEvent({ type: 'snapshot', snapshot })
 }, { immediate: true })
+
 watch(modelSettingsRuntimeChannelEvent, (event) => {
   if (event?.type !== 'request-current')
     return
@@ -223,24 +218,12 @@ const { stream, enabled } = storeToRefs(settingsAudioDeviceStore)
 const { askPermission } = settingsAudioDeviceStore
 const { startRecord, stopRecord, onStopRecord } = useAudioRecorder(stream)
 const hearingPipeline = useHearingSpeechInputPipeline()
-const {
-  transcribeForRecording,
-  transcribeForMediaStream,
-  stopStreamingTranscription,
-} = hearingPipeline
+const { transcribeForRecording, transcribeForMediaStream, stopStreamingTranscription } = hearingPipeline
 const { supportsStreamInput } = storeToRefs(hearingPipeline)
-const providersStore = useProvidersStore()
-const consciousnessStore = useConsciousnessStore()
-const { activeProvider: activeChatProvider, activeModel: activeChatModel } = storeToRefs(consciousnessStore)
-const chatStore = useChatOrchestratorStore()
+const chatSyncStore = useChatSyncStore()
 const shouldUseStreamInput = computed(() => supportsStreamInput.value && !!stream.value)
 
-const {
-  init: initVAD,
-  dispose: disposeVAD,
-  start: startVAD,
-  loaded: vadLoaded,
-} = useVAD(workletUrl, {
+const { init: initVAD, dispose: disposeVAD, start: startVAD, loaded: vadLoaded } = useVAD(workletUrl, {
   threshold: ref(0.6),
   onSpeechStart: () => {
     void handleSpeechStart()
@@ -251,12 +234,38 @@ const {
 })
 
 let stopOnStopRecord: (() => void) | undefined
+const audioInteractionStarting = ref(false)
 
 // Caption overlay broadcast channel
 type CaptionChannelEvent
   = | { type: 'caption-speaker', text: string }
     | { type: 'caption-assistant', text: string }
 const { post: postCaption } = useBroadcastChannel<CaptionChannelEvent, CaptionChannelEvent>({ name: 'airi-caption-overlay' })
+
+function handleStreamingSentenceEnd(delta: string) {
+  console.info('[Main Page] Received transcription delta:', delta)
+  const finalText = delta
+  if (!finalText || !finalText.trim()) {
+    return
+  }
+
+  postCaption({ type: 'caption-speaker', text: finalText })
+
+  void (async () => {
+    try {
+      console.info('[Main Page] Sending transcription to chat:', finalText)
+      await chatSyncStore.requestIngest({ text: finalText })
+    }
+    catch (err) {
+      console.error('[Main Page] Failed to send chat from voice:', err)
+    }
+  })()
+}
+
+function handleStreamingSpeechEnd(text: string) {
+  console.info('[Main Page] Speech ended, final text:', text)
+  postCaption({ type: 'caption-speaker', text })
+}
 
 async function handleSpeechStart() {
   if (shouldUseStreamInput.value) {
@@ -277,12 +286,27 @@ async function handleSpeechEnd() {
 }
 
 async function startAudioInteraction() {
+  if (audioInteractionStarting.value)
+    return
+
+  // NOTICE: `stopOnStopRecord` only tracks whether the non-stream recording hook was registered.
+  //
+  // It does NOT guarantee that the current realtime transcription session is still attached to the
+  // latest `MediaStream`. We previously used it as a generic "already started" guard, which broke
+  // the hearing-config retoggle path: the mic stream was recreated, VAD restarted on the new stream,
+  // but `transcribeForMediaStream()` never reattached so speech was detected without any transcript.
+  //
+  // Keep the startup guard scoped to "startup in progress" only, and let stream changes restart the
+  // transcription binding when a new stream arrives.
+  audioInteractionStarting.value = true
   try {
     console.info('[Main Page] Starting audio interaction...')
 
     initVAD().then(() => {
-      if (stream.value)
+      if (stream.value) {
+        console.info('[Main Page] VAD initialized successfully, starting with stream input')
         return startVAD(stream.value)
+      }
     }).catch((err) => {
       console.warn('[Main Page] VAD initialization failed (non-critical for Web Speech API):', err)
     })
@@ -300,35 +324,8 @@ async function startAudioInteraction() {
 
       // Use sentence deltas for live captions and speech end for final text.
       await transcribeForMediaStream(stream.value, {
-        onSentenceEnd: (delta) => {
-          console.info('[Main Page] Received transcription delta:', delta)
-          const finalText = delta
-          if (!finalText || !finalText.trim()) {
-            return
-          }
-
-          postCaption({ type: 'caption-speaker', text: finalText })
-
-          void (async () => {
-            try {
-              const provider = await providersStore.getProviderInstance(activeChatProvider.value)
-              if (!provider || !activeChatModel.value) {
-                console.warn('[Main Page] No provider or model available, skipping chat send')
-                return
-              }
-
-              console.info('[Main Page] Sending transcription to chat:', finalText)
-              await chatStore.ingest(finalText, { model: activeChatModel.value, chatProvider: provider as ChatProvider })
-            }
-            catch (err) {
-              console.error('[Main Page] Failed to send chat from voice:', err)
-            }
-          })()
-        },
-        onSpeechEnd: (text) => {
-          console.info('[Main Page] Speech ended, final text:', text)
-          postCaption({ type: 'caption-speaker', text })
-        },
+        onSentenceEnd: handleStreamingSentenceEnd,
+        onSpeechEnd: handleStreamingSpeechEnd,
       })
 
       console.info('[Main Page] Streaming transcription started successfully')
@@ -341,43 +338,51 @@ async function startAudioInteraction() {
       })
     }
 
-    // Hook once
-    stopOnStopRecord = onStopRecord(async (recording) => {
-      if (shouldUseStreamInput.value)
-        return
-
-      const text = await transcribeForRecording(recording)
-      if (!text || !text.trim())
-        return
-
-      // Update caption overlay speaker text via BroadcastChannel
-      postCaption({ type: 'caption-speaker', text })
-
-      try {
-        const provider = await providersStore.getProviderInstance(activeChatProvider.value)
-        if (!provider || !activeChatModel.value)
+    // NOTICE: This hook is only for record-then-transcribe providers.
+    //
+    // Streaming providers use the active `MediaStream` directly, so this callback must not be treated
+    // as proof that a realtime session is alive. Future refactors should keep recorder-hook bookkeeping
+    // separate from stream transcription state, otherwise mic/device re-toggles can leave VAD active
+    // but transcription detached.
+    //
+    // Hook once for non-streaming providers.
+    if (!stopOnStopRecord) {
+      stopOnStopRecord = onStopRecord(async (recording) => {
+        if (shouldUseStreamInput.value)
           return
 
-        await chatStore.ingest(text, { model: activeChatModel.value, chatProvider: provider as ChatProvider })
-      }
-      catch (err) {
-        console.error('Failed to send chat from voice:', err)
-      }
-    })
+        const text = await transcribeForRecording(recording)
+        if (!text || !text.trim())
+          return
+
+        // Update caption overlay speaker text via BroadcastChannel
+        postCaption({ type: 'caption-speaker', text })
+
+        try {
+          await chatSyncStore.requestIngest({ text })
+        }
+        catch (err) {
+          console.error('Failed to send chat from voice:', err)
+        }
+      })
+    }
   }
   catch (e) {
     console.error('Audio interaction init failed:', e)
   }
+  finally {
+    audioInteractionStarting.value = false
+  }
 }
 
 function stopAudioInteraction() {
-  try {
+  tryCatch(() => {
     stopOnStopRecord?.()
     stopOnStopRecord = undefined
+    audioInteractionStarting.value = false
     void stopStreamingTranscription(true)
     disposeVAD()
-  }
-  catch {}
+  })
 }
 
 watch(enabled, async (val) => {
@@ -392,6 +397,7 @@ watch(enabled, async (val) => {
 }, { immediate: true })
 
 onMounted(() => {
+  chatSyncStore.initialize('authority')
   if (onboardingStore.needsOnboarding) {
     openOnboarding()
   }
@@ -403,6 +409,19 @@ onUnmounted(() => {
     ownerInstanceId: modelSettingsRuntimeOwnerInstanceId,
   })
   stopAudioInteraction()
+  chatSyncStore.dispose()
+})
+
+watch(stream, async (currentStream) => {
+  if (!enabled.value || !currentStream || audioInteractionStarting.value)
+    return
+
+  // NOTICE: The controls-island mic toggle and device changes can replace the underlying MediaStream
+  // without reloading the page. When that happens, VAD may successfully restart against the new stream,
+  // but any existing transcription transport is still bound to the old one. Always allow the page to
+  // re-run `startAudioInteraction()` for a newly available stream unless startup is already underway.
+  console.info('[Main Page] Stream became available, ensuring audio interaction is started')
+  await startAudioInteraction()
 })
 
 watch([stream, () => vadLoaded.value], async ([s, loaded]) => {
@@ -456,7 +475,6 @@ watch([stream, () => vadLoaded.value], async ([s, loaded]) => {
           :scale="scale"
           :x-offset="positionInPercentageString.x"
           :y-offset="positionInPercentageString.y"
-          mb="<md:18"
         />
         <ControlsIsland
           ref="controlsIslandRef"

@@ -1,6 +1,7 @@
 {
   "name": "@proj-airi/stage-ui",
   "type": "module",
+  "version": "0.9.0-beta.4",
   "private": true,
   "description": "Shared core for stage",
   "author": {
@@ -28,7 +29,10 @@
     "./libs": "./src/libs/index.ts",
     "./stores/providers/aliyun": "./src/stores/providers/aliyun/index.ts",
     "./stores/analytics": "./src/stores/analytics/index.ts",
+    "./stores/analytics/posthog": "./src/stores/analytics/posthog.ts",
+    "./stores/analytics/privacy-policy": "./src/stores/analytics/privacy-policy.ts",
     "./stores/character": "./src/stores/character/index.ts",
+    "./stores/settings/analytics": "./src/stores/settings/analytics.ts",
     "./stores/settings": "./src/stores/settings/index.ts",
     "./stores/modules/vision": "./src/stores/modules/vision/index.ts",
     "./stores/*": "./src/stores/*.ts",
@@ -55,7 +59,7 @@
     "@date-fns/utc": "^2.1.1",
     "@formkit/auto-animate": "^0.9.0",
     "@huggingface/transformers": "^3.8.1",
-    "@moeru/eventa": "^1.0.0-beta.1",
+    "@moeru/eventa": "catalog:",
     "@proj-airi/audio": "workspace:^",
     "@proj-airi/ccc": "workspace:^",
     "@proj-airi/chromatic": "^1.0.2",
