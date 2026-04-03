@@ -30,6 +30,7 @@ export const useModsServerChannelStore = defineStore('mods:channels:proj-airi:se
   const initializing = ref<Promise<void> | null>(null)
   const pendingSend = ref<Array<WebSocketEvent>>([])
   const pendingSendCount = computed(() => pendingSend.value.length)
+  const reconnectedCallbacks = new Set<() => void>()
 
   const defaultWebSocketUrl = import.meta.env.VITE_AIRI_WS_URL || 'ws://localhost:6121/ws'
   const websocketUrl = useLocalStorage('settings/connection/websocket-url', defaultWebSocketUrl)
@@ -76,6 +77,11 @@ export const useModsServerChannelStore = defineStore('mods:channels:proj-airi:se
         name: isStageWeb() ? WebSocketEventSource.StageWeb : isStageTamagotchi() ? WebSocketEventSource.StageTamagotchi : WebSocketEventSource.StageWeb,
         url: websocketUrl.value || defaultWebSocketUrl,
         token: options?.token,
+        heartbeat: {
+          // Keep client and server heartbeat windows aligned to reduce false-positive disconnects.
+          readTimeout: 60_000,
+          pingInterval: 20_000,
+        },
         possibleEvents,
         onAnyMessage: (event) => {
           if (REPLAYABLE_EVENT_TYPES.has(event.type as keyof WebSocketEvents))
@@ -88,17 +94,17 @@ export const useModsServerChannelStore = defineStore('mods:channels:proj-airi:se
         },
         onError: (error) => {
           connected.value = false
-          initializing.value = null
-          clearListeners()
-          replayableEvents.clear()
+          // initializing.value = null
+          // clearListeners()
+          // replayableEvents.clear()
 
           console.warn('WebSocket server connection error:', error)
         },
         onClose: () => {
           connected.value = false
-          initializing.value = null
-          clearListeners()
-          replayableEvents.clear()
+          // initializing.value = null
+          // clearListeners()
+          // replayableEvents.clear()
 
           console.warn('WebSocket server connection closed')
         },
@@ -106,6 +112,12 @@ export const useModsServerChannelStore = defineStore('mods:channels:proj-airi:se
           connected.value = true
           flush()
           initializeListeners()
+
+          for (const callback of reconnectedCallbacks) {
+            callback()
+          }
+
+          console.info('WebSocket server connection re-established')
         },
       })
 
@@ -218,6 +230,14 @@ export const useModsServerChannelStore = defineStore('mods:channels:proj-airi:se
     return registerListener(type, callback)
   }
 
+  function onReconnected(callback: () => void) {
+    reconnectedCallbacks.add(callback)
+
+    return () => {
+      reconnectedCallbacks.delete(callback)
+    }
+  }
+
   function sendContextUpdate(message: InputContextUpdate) {
     const id = nanoid()
     send({
@@ -259,6 +279,7 @@ export const useModsServerChannelStore = defineStore('mods:channels:proj-airi:se
     sendContextUpdate,
     onContextUpdate,
     onEvent,
+    onReconnected,
     getPendingSendSnapshot: () => [...pendingSend.value],
     dispose,
   }

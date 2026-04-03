@@ -675,6 +675,38 @@ export class Client<C = undefined> {
         return
       }
 
+      case 'registry:modules:sync': {
+        // Fallback: If the status is stuck at 'announcing' but the sync already contains this module,
+        // it means the announce succeeded; the server simply didn't send back 'module:announced'
+        if (this.status !== 'announcing' || !this.connectionAttempt) {
+          return
+        }
+
+        const modules = (data.data as any)?.modules as Array<{
+          name: string
+          identity?: { id?: string }
+        }> ?? []
+
+        const selfRegistered = modules.some(
+          m => m.name === this.opts.name
+            && m.identity?.id === this.identity.id,
+        )
+
+        if (!selfRegistered) {
+          return
+        }
+
+        if (this.connectionAttempt) {
+          this.connectionAttempt.announced = true
+        }
+
+        this.reconnectAttempts = 0
+        this.transitionTo('ready')
+        this.resolveAttempt()
+        this.opts.onReady?.()
+        return
+      }
+
       case 'transport:connection:heartbeat': {
         if (data.data.kind === MessageHeartbeatKind.Ping) {
           this.sendHeartbeatPong()

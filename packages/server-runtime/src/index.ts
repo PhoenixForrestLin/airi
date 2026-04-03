@@ -607,6 +607,10 @@ export function setupApp(options?: AppOptions): { app: H3, closeAllPeers: () => 
           return
         }
 
+        case 'ping' as any: {
+          return
+        }
+
         case 'module:authenticate': {
           const clientToken = typeof event.data.token === 'string' ? event.data.token : ''
           if (authToken && !timingSafeCompare(clientToken, authToken)) {
@@ -881,10 +885,43 @@ export function setupApp(options?: AppOptions): { app: H3, closeAllPeers: () => 
     },
     close: (peer, details) => {
       const p = peers.get(peer.id)
+      const now = Date.now()
+      const detailsWithWasClean = details as { wasClean?: unknown }
+      const closeCode = typeof details?.code === 'number' ? details.code : undefined
+      const closeReason = typeof details?.reason === 'string' ? details.reason : undefined
+      const closeWasClean = typeof detailsWithWasClean.wasClean === 'boolean' ? detailsWithWasClean.wasClean : undefined
+      const heartbeatLastSeenAt = p?.lastHeartbeatAt
+      const heartbeatSilentForMs = heartbeatLastSeenAt ? now - heartbeatLastSeenAt : undefined
+      const likelyHeartbeatExpiry = Boolean(
+        p
+        && typeof heartbeatSilentForMs === 'number'
+        && heartbeatSilentForMs > heartbeatTtlMs,
+      )
+      const likelySilentNetworkClose = closeCode === 1005
+
       if (p)
         unregisterModulePeer(p, 'connection closed')
 
-      logger.withFields({ peer: peer.id, peerRemote: peer.remoteAddress, details, activePeers: peers.size }).log('closed')
+      logger.withFields({
+        peer: peer.id,
+        peerRemote: peer.remoteAddress,
+        details,
+        closeCode,
+        closeReason,
+        closeWasClean,
+        activePeers: peers.size,
+        peerAuthenticated: p?.authenticated,
+        peerName: p?.name,
+        peerIndex: p?.index,
+        peerHealthy: p?.healthy,
+        peerMissedHeartbeats: p?.missedHeartbeats,
+        heartbeatLastSeenAt,
+        heartbeatSilentForMs,
+        heartbeatTtlMs,
+        healthCheckIntervalMs,
+        likelyHeartbeatExpiry,
+        likelySilentNetworkClose,
+      }).log('closed')
       peers.delete(peer.id)
     },
   }))

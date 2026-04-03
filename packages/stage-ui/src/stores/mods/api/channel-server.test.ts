@@ -162,4 +162,36 @@ describe('channel-server store reconnect', () => {
       }),
     ]))
   })
+
+  it('uses explicit heartbeat settings to avoid client/server timeout mismatch', async () => {
+    const store = useModsServerChannelStore()
+
+    const initializePromise = store.initialize({ token: 'secret' })
+    const client = serverSdkMocks.MockClient.instances[0]
+
+    client.simulateAuthenticated()
+    await initializePromise
+
+    expect(client.options.heartbeat).toEqual({
+      readTimeout: 60_000,
+      pingInterval: 20_000,
+    })
+  })
+
+  it('notifies onReconnected callbacks when the websocket becomes ready again', async () => {
+    const store = useModsServerChannelStore()
+    const onReconnected = vi.fn()
+    store.onReconnected(onReconnected)
+
+    const initializePromise = store.initialize({ token: 'secret' })
+    const client = serverSdkMocks.MockClient.instances[0]
+
+    client.simulateAuthenticated()
+    await initializePromise
+
+    client.simulateTransientDisconnect()
+    client.simulateReconnectReady()
+
+    expect(onReconnected).toHaveBeenCalledTimes(1)
+  })
 })
